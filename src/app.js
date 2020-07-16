@@ -17,17 +17,18 @@ module.exports = async function(){
     return new Vue({
         template: `<div>
         
-        <h1>DÉPÔT DE DOSSIER – ETRANGERS EN SITUATION RÉGULIÈRE: Vérification de disponibilité</h1>
-        <h3>{{stats.lastCheckFormatted}}</h3>
+        <h1>DÉPÔT DE DOSSIER – ETRANGERS EN SITUATION RÉGULIÈRE: 
+        <br/>Vérification de disponibilité</h1>
+        <h3>Last check at {{stats.lastCheckFormatted}}</h3>
 
-        <h2>Disponibilités detectes</h2>
+        <h2 class="rdv_ok">Disponibilités detectes</h2>
         <div class="imgTable">
             <div class="imgItem" v-for="(item,key) in stats.photosAvail||[]" :key="key">
                 <label v-html="item.date"></label>    
                 <img    :src="'/photos/'+item.name+'.png'" />
             </div>
         </div>
-        <h2>Indisponibilité detectes</h2>
+        <h2 class="rdv_fail">Indisponibilité detectes</h2>
         <div class="imgTable">
             <div class="imgItem" v-for="(item,key) in stats.photos" :key="key">
                 <label v-html="item.date"></label>    
@@ -50,6 +51,29 @@ module.exports = async function(){
             label{
                 text-align:center;
                 display:block;
+            }
+            h1{
+                background:blue;
+                color:white;
+                padding:0px 5px;
+                margin:0px;
+            }
+            h3{
+                background:yellow;
+                padding:20px;
+                margin:0px;
+                text-align:right;
+            }
+            body{
+                margin:0px;
+            }
+            .rdv_ok{
+                background:green;
+                color:white;
+            }
+            .rdv_fail{
+                background:red;
+                color:white;
             }
         </style>
         

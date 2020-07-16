@@ -13,6 +13,10 @@ moment = (m) => momentTZ(m).tz('Europe/Paris')
 
 schedule.scheduleJob('*/30 * * * *', isRdvAvailableTask);
 
+app.get('/check',(req,res)=>{
+    isRdvAvailableTask();
+    res.send('Checking... (<a href="/" target="_self">refresh</a> the browser in a few seconds)')
+})
 app.use('/',express.static('public'))
 app.get('/',async (req,res)=>{
     try{
