@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "npx nodemon --exec 'node src/index.js' -e js,json --watch src",
-    "start":"cross-env NODE_ENV=production node src/index.js"
+    "start": "cross-env NODE_ENV=production node src/index.js"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +16,7 @@
     "express": "^4.17.1",
     "imagemin": "^7.0.1",
     "moment-timezone": "^0.5.31",
+    "node-mailjet": "^3.3.1",
     "node-schedule": "^1.3.2",
     "nodemon": "^2.0.4",
     "playwright": "^1.2.1",

@@ -10,6 +10,7 @@ const sander = require('sander');
 const renderApp = require('./renderer')
 let momentTZ = require('moment-timezone')
 moment = (m) => momentTZ(m).tz('Europe/Paris')
+const email = require('./email')
 
 schedule.scheduleJob('*/30 * * * *', isRdvAvailableTask);
 
@@ -87,13 +88,16 @@ async function savePhotoInfo(isAvailable){
         stats.photosAvail.push(id)
     }
     await sander.writeFile(process.cwd()+'/public/stats.json',JSON.stringify(stats,null,4))
+    if(isAvailable){
+        email.notifyAvailability();
+    }
     return process.cwd()+`/public/photos/${id}.png`;
 }
 
 async function optimizeImage(path){
     const imagemin = require('imagemin');
     const pngToJpeg = require('png-to-jpeg');
-    const files = await imagemin([path], {
+    await imagemin([path], {
         destination:process.cwd()+'/public/photos',
         plugins: [
             pngToJpeg({quality: 30})
