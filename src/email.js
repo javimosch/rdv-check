@@ -7,6 +7,13 @@ module.exports = {
         
         let stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
 
+        let emailTo = (process.env.EMAIL_TO || "arancibiajav@gmail.com").trim().split(',').map(email=>{
+            return {
+                Email: email,
+                Name: 'Listener'
+            }
+        })
+
         const request = mailjet
             .post("send", { 'version': 'v3.1' })
             .request({
@@ -16,12 +23,7 @@ module.exports = {
                             "Email": "robot@devforgood.org",
                             "Name": "RDV Check Robot"
                         },
-                        "To": [
-                            {
-                                "Email": "arancibiajav@gmail.com",
-                                "Name": "Admin"
-                            }
-                        ],
+                        "To": emailTo,
                         "Subject": "RDV Check: Availability detected!",
                         "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
                         "HTMLPart": `

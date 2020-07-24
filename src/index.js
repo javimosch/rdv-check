@@ -12,7 +12,8 @@ let momentTZ = require('moment-timezone')
 moment = (m) => momentTZ(m).tz('Europe/Paris')
 const email = require('./email')
 
-schedule.scheduleJob('*/30 * * * *', isRdvAvailableTask);
+schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
+schedule.scheduleJob('*/5 * * * *', createRdvAvailableTask(false));
 
 app.get('/check',(req,res)=>{
     isRdvAvailableTask();
@@ -41,16 +42,18 @@ app.get('/',async (req,res)=>{
 })
 app.listen(process.env.PORT||3000, ()=>console.log(`LISTEN ${process.env.PORT||3000}`))
 
-async function isRdvAvailableTask(){
-    isRdvAvailable().then(async isAvailable => {
-        let stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
-        stats.lastCheck = moment()._d.getTime()
-        stats.lastCheckFormatted = moment().format('DD-MM-YY HH[h]mm')
-        await sander.writeFile(process.cwd()+'/public/stats.json',JSON.stringify(stats,null,4))
-    })
+function createRdvAvailableTask(savePhotos = true){
+    return function(){
+        isRdvAvailable(savePhotos).then(async isAvailable => {
+            let stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
+            stats.lastCheck = moment()._d.getTime()
+            stats.lastCheckFormatted = moment().format('DD-MM-YY HH[h]mm')
+            await sander.writeFile(process.cwd()+'/public/stats.json',JSON.stringify(stats,null,4))
+        })
+    }
 }
 
-async function isRdvAvailable() {
+async function isRdvAvailable(savePhotos) {
     let url = 'http://www.herault.gouv.fr/Actualites/INFOS/Usagers-etrangers-en-situation-reguliere-Prenez-rendez-vous-ici';
     const browser = await playwright[browserType].launch({
         headless: true
@@ -69,15 +72,21 @@ async function isRdvAvailable() {
     let notAvailable = await page.$eval('form[name="create"]', el => {
         return el.innerHTML.indexOf('existe plus') !== -1
     })
-    let photoPath = await savePhotoInfo(!notAvailable)
-    await page.screenshot({ path: photoPath });
-    await optimizeImage(photoPath)
+    let isAvailable = !notAvailable
+    if(isAvailable || savePhotos){
+        let photoPath = await savePhotoInfo(isAvailable)
+        await page.screenshot({ path: photoPath });
+        await optimizeImage(photoPath)
+    }
     await browser.close();
-    return !notAvailable
+    return isAvailable
 };
 
 async function savePhotoInfo(isAvailable){
-    let stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
+    let stats = {}
+    try{
+        JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
+    }catch(err){}
     stats.photos = stats.photos || [];
     let id = moment().format('DD[_]MM[_]YY[_]HH[_]mm')
     if(stats.photos.indexOf(id)===-1){
