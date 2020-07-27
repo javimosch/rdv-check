@@ -42,6 +42,71 @@ app.get('/',async (req,res)=>{
 })
 app.listen(process.env.PORT||3000, ()=>console.log(`LISTEN ${process.env.PORT||3000}`))
 
+
+detectExistingPhotos()
+
+async function removeExtensions(){
+    let stats = await getStats();
+    stats.photos = stats.photos.map(p=>{
+        return p.split('.')[0]
+    })
+    stats.photosAvail = stats.photosAvail.map(p=>{
+        return p.split('.')[0]
+    })
+    await saveStats(stats) 
+}
+
+async function removeDuplicates(){
+    let stats = await getStats();
+    stats.photos = stats.photos.filter((p,i)=>{
+        return stats.photos.indexOf(p)===i
+    })
+    stats.photosAvail = stats.photosAvail.filter((p,i)=>{
+        return stats.photosAvail.indexOf(p)===i
+    })
+    await saveStats(stats) 
+}
+
+async function detectExistingPhotos(){
+    await removeDuplicates()
+    await removeExtensions()
+    let stats = await getStats();
+    let detectExistingPhotosAvailable = async (available = false)=>{
+        let statsKey = available ? 'photosAvail' : 'photos'
+        let photosInStats = await readPhotosDirectory(available)
+        photosInStats.forEach(name=>{
+            name = name.split('.')[0]
+            let isPresent = stats[statsKey] && stats[statsKey].find(n=>n==name)
+            if(!isPresent){
+                stats[statsKey].push(name)
+            }
+        })
+        stats[statsKey] = stats[statsKey].sort((a,b)=>{
+            return a<b ? 1 : -1
+        })
+    }
+    await detectExistingPhotosAvailable(false)
+    await detectExistingPhotosAvailable(true)
+    await saveStats(stats)
+}
+
+async function readPhotosDirectory(available = false){
+    return await sander.readdir(process.cwd()+`/public/photos/${available?'available':'not_available'}`)
+}
+
+async function getStats(){
+    try{
+        return JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
+    }catch(err){
+        return {}
+    }
+}
+
+async function saveStats(stats){
+    return await sander.writeFile(process.cwd()+'/public/stats.json',JSON.stringify(stats,null,4))
+}
+
+
 function createRdvAvailableTask(savePhotos = true){
     return function(){
         isRdvAvailable(savePhotos).then(async isAvailable => {
@@ -78,6 +143,11 @@ async function isRdvAvailable(savePhotos) {
         await page.screenshot({ path: photoPath });
         await optimizeImage(photoPath)
     }
+
+    if(isAvailable){
+        email.notifyAvailability();
+    }
+
     await browser.close();
     return isAvailable
 };
@@ -85,7 +155,7 @@ async function isRdvAvailable(savePhotos) {
 async function savePhotoInfo(isAvailable){
     let stats = {}
     try{
-        JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
+        stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
     }catch(err){}
     stats.photos = stats.photos || [];
     let id = moment().format('DD[_]MM[_]YY[_]HH[_]mm')
@@ -97,10 +167,8 @@ async function savePhotoInfo(isAvailable){
         stats.photosAvail.push(id)
     }
     await sander.writeFile(process.cwd()+'/public/stats.json',JSON.stringify(stats,null,4))
-    if(isAvailable){
-        email.notifyAvailability();
-    }
-    return process.cwd()+`/public/photos/${id}.png`;
+
+    return process.cwd()+`/public/photos/${isAvailable?'available':"not_available"}/${id}.png`;
 }
 
 async function optimizeImage(path){

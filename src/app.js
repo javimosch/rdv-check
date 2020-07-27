@@ -19,33 +19,44 @@ module.exports = async function(){
         
         <h1>DÉPÔT DE DOSSIER – ETRANGERS EN SITUATION RÉGULIÈRE: 
         <br/>Vérification de disponibilité</h1>
-        <h3>Last check at {{stats.lastCheckFormatted}}</h3>
-
+        <h3 class="warning">Last check at {{stats.lastCheckFormatted}}</h3>
+        <p>
+        &nbsp;Source code: <br/>
+        <a href="https://github.com/misitioba/rdv-check" target="_blank">
+            &nbsp;https://github.com/misitioba/rdv-check
+        </a>
+        </p>
+        
         <h2 class="rdv_ok">Disponibilités detectes</h2>
         <div class="imgTable">
             <div class="imgItem" v-for="(item,key) in stats.photosAvail||[]" :key="key">
-                <label v-html="item.date"></label>    
-                <img    :src="'/photos/'+item.name+'.png'" />
+                <a :href="'/photos/available/'+item.name+'.png'" target="_blank">
+                    <p v-html="item.date"></p>    
+                    <img    :src="'/photos/available/'+item.name+'.png'" />
+                </a>
             </div>
         </div>
         <h2 class="rdv_fail">Indisponibilité detectes</h2>
         <div class="imgTable">
             <div class="imgItem" v-for="(item,key) in stats.photos" :key="key">
-                <label v-html="item.date"></label>    
-                <img    :src="'/photos/'+item.name+'.png'" />
+                
+                <a :href="'/photos/not_available/'+item.name+'.png'" target="_blank">
+                    <p v-html="item.date"></p>    
+                    <img    :src="'/photos/not_available/'+item.name+'.png'" />
+                </a>
             </div>
         </div>
 
         <style scoped>
             .imgTable{
-                display:grid;
-                grid-template-columns: 50% 50%;
+                display: flex;
+                flex-flow: wrap;
             }
             .imgItem{
                 padding:10px;
             }
             img{
-                width:calc(100vw / 2);
+                width:calc(100vw / 10);
                 display:block;
             }
             label{
@@ -53,16 +64,17 @@ module.exports = async function(){
                 display:block;
             }
             h1{
-                background:blue;
-                color:white;
+                background:white;
+                color:black;
                 padding:0px 5px;
                 margin:0px;
             }
-            h3{
+            .warning{
                 background:yellow;
                 padding:20px;
                 margin:0px;
                 text-align:right;
+                font-size:20px;
             }
             body{
                 margin:0px;
