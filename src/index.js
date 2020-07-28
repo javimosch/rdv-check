@@ -42,7 +42,6 @@ app.get('/',async (req,res)=>{
 })
 app.listen(process.env.PORT||3000, ()=>console.log(`LISTEN ${process.env.PORT||3000}`))
 
-
 detectExistingPhotos()
 
 async function removeExtensions(){
