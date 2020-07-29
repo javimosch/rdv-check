@@ -151,7 +151,11 @@ async function isRdvAvailable(savePhotos, keepBrowserOpened = false) {
         if(keepBrowserOpened){
             try{
                 if(app._browser && app._browserAt < Date.now()){
-                    await app._browser.close()
+                    try{
+                        await app._browser.close()
+                    }catch(err){
+                        //ignore such error
+                    }
                     app._browser= null
                 }
                 if(app._browser){
