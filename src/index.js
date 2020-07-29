@@ -117,10 +117,10 @@ function createRdvAvailableTask(savePhotos = true){
     }
 }
 
-async function isRdvAvailable(savePhotos) {
+async function isRdvAvailable(savePhotos, keepBrowserOpened = false) {
     let url = 'http://www.herault.gouv.fr/Actualites/INFOS/Usagers-etrangers-en-situation-reguliere-Prenez-rendez-vous-ici';
     const browser = await playwright[browserType].launch({
-        headless: true
+        headless: keepBrowserOpened===false
     });
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -145,9 +145,36 @@ async function isRdvAvailable(savePhotos) {
 
     if(isAvailable){
         email.notifyAvailability();
-    }
 
-    await browser.close();
+        if(keepBrowserOpened){
+            try{
+                if(app._browser && app._browserAt < Date.now()){
+                    await app._browser.close()
+                    app._browser= null
+                }
+                if(app._browser){
+                    console.log(moment().format('DD-MM-YY HH:mm:ss'),'There is already a <10 min rdv avail browser opened')
+                    await browser.close() //There is <10 min available rdv openeed
+                }else{
+                    app._browserAt = Date.now() + (1000*10) //Keep a browser opened for 10 min or until next avail
+                    app._browser= browser
+                    console.log(moment().format('DD-MM-YY HH:mm:ss'),"INFO Browser is opened (availability)")
+                }
+            }catch(err){
+                console.log('ERROR: (Trying to keep the browser opened)',err)
+                await browser.close();
+            }
+        }else{
+            console.log(moment().format('DD-MM-YY HH:mm:ss'),'INFO (Trying to keep the browser opened after an availabitiy)')
+            isRdvAvailable(false,true)
+        }
+
+
+    }else{
+        await browser.close();
+        console.log(moment().format('DD-MM-YY HH:mm:ss'),'no rdv available')
+    }
+    
     return isAvailable
 };
 
