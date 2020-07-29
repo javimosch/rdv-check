@@ -13,7 +13,7 @@ moment = (m) => momentTZ(m).tz('Europe/Paris')
 const email = require('./email')
 
 schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
-schedule.scheduleJob('*/5 * * * *', createRdvAvailableTask(false));
+schedule.scheduleJob('*/1 * * * *', createRdvAvailableTask(false));
 
 app.get('/check',(req,res)=>{
     isRdvAvailableTask();
@@ -113,6 +113,8 @@ function createRdvAvailableTask(savePhotos = true){
             stats.lastCheck = moment()._d.getTime()
             stats.lastCheckFormatted = moment().format('DD-MM-YY HH[h]mm')
             await sander.writeFile(process.cwd()+'/public/stats.json',JSON.stringify(stats,null,4))
+        }).catch(err=>{
+            console.log("ERROR (CRON)", err)
         })
     }
 }
