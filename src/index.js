@@ -13,7 +13,7 @@ moment = (m) => momentTZ(m).tz('Europe/Paris')
 const email = require('./email')
 
 schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
-schedule.scheduleJob('*/1 * * * *', createRdvAvailableTask(false));
+schedule.scheduleJob('*/3 * * * *', createRdvAvailableTask(false));
 
 app.get('/check',(req,res)=>{
     isRdvAvailableTask();
@@ -127,18 +127,26 @@ async function isRdvAvailable(savePhotos, keepBrowserOpened = false) {
     const context = await browser.newContext();
     const page = await context.newPage();
     await page.goto(url);
-    url = await page.$eval('img[title="Prendre rendez-vous"]', el => el.parentNode.href)
-    await page.goto(url)
-    await page.click('input[name="condition"]')
-    await page.click('input[name="nextButton"')
+    
+    let isAvailable = false
+    
+    try{
+        url = await page.$eval('img[title="Prendre rendez-vous"]', el => el.parentNode.href)
+        await page.goto(url)
+        await page.click('input[name="condition"]')
+        await page.click('input[name="nextButton"')
 
-    await page.waitForFunction(() => {
-        return !!document.querySelector('#global_Booking')
-    })
-    let notAvailable = await page.$eval('form[name="create"]', el => {
-        return el.innerHTML.indexOf('existe plus') !== -1
-    })
-    let isAvailable = !notAvailable
+        await page.waitForFunction(() => {
+            return !!document.querySelector('#global_Booking')
+        })
+        let notAvailable = await page.$eval('form[name="create"]', el => {
+            return el.innerHTML.indexOf('existe plus') !== -1
+        })
+        isAvailable = !notAvailable
+    }catch(err){
+        console.log("ERROR (While scraping)",err)
+    }
+
     if(isAvailable || savePhotos){
         let photoPath = await savePhotoInfo(isAvailable)
         await page.screenshot({ path: photoPath });
