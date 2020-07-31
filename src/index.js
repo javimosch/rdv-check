@@ -13,7 +13,7 @@ moment = (m) => momentTZ(m).tz('Europe/Paris')
 const email = require('./email')
 
 schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
-schedule.scheduleJob('*/3 * * * *', createRdvAvailableTask(false));
+schedule.scheduleJob('*/2,05 * * * *', createRdvAvailableTask(false));
 
 app.get('/check',(req,res)=>{
     isRdvAvailableTask();
@@ -119,7 +119,7 @@ function createRdvAvailableTask(savePhotos = true){
     }
 }
 
-async function isRdvAvailable(savePhotos, keepBrowserOpened = false) {
+async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEmail = true) {
     let url = 'http://www.herault.gouv.fr/Actualites/INFOS/Usagers-etrangers-en-situation-reguliere-Prenez-rendez-vous-ici';
     const browser = await playwright[browserType].launch({
         headless: keepBrowserOpened===false
@@ -154,7 +154,10 @@ async function isRdvAvailable(savePhotos, keepBrowserOpened = false) {
     }
 
     if(isAvailable){
-        email.notifyAvailability();
+
+        if(notifyByEmail){
+            email.notifyAvailability();
+        }
 
         if(keepBrowserOpened){
             try{
@@ -170,7 +173,7 @@ async function isRdvAvailable(savePhotos, keepBrowserOpened = false) {
                     console.log(moment().format('DD-MM-YY HH:mm:ss'),'There is already a <10 min rdv avail browser opened')
                     await browser.close() //There is <10 min available rdv openeed
                 }else{
-                    app._browserAt = Date.now() + (1000*10) //Keep a browser opened for 10 min or until next avail
+                    app._browserAt = Date.now() + (1000*3) //Keep a browser opened for 10 min or until next avail
                     app._browser= browser
                     console.log(moment().format('DD-MM-YY HH:mm:ss'),"INFO Browser is opened (availability)")
                 }
@@ -180,7 +183,7 @@ async function isRdvAvailable(savePhotos, keepBrowserOpened = false) {
             }
         }else{
             console.log(moment().format('DD-MM-YY HH:mm:ss'),'INFO (Trying to keep the browser opened after an availabitiy)')
-            isRdvAvailable(false,true)
+            isRdvAvailable(false,true, false)
         }
 
 
