@@ -12,13 +12,11 @@ let momentTZ = require('moment-timezone')
 moment = (m) => momentTZ(m).tz('Europe/Paris')
 const email = require('./email')
 
-schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
-schedule.scheduleJob('*/2,05 * * * *', createRdvAvailableTask(false));
+//schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
+//schedule.scheduleJob('*/2,05 * * * *', createRdvAvailableTask(false));
 
-app.get('/check',(req,res)=>{
-    isRdvAvailableTask();
-    res.send('Checking... (<a href="/" target="_self">refresh</a> the browser in a few seconds)')
-})
+isRdvAvailable(true,false,false);
+
 app.use('/',express.static('public'))
 app.get('/',async (req,res)=>{
     try{
@@ -119,39 +117,82 @@ function createRdvAvailableTask(savePhotos = true){
     }
 }
 
-async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEmail = true) {
-    let url = 'http://www.herault.gouv.fr/Actualites/INFOS/Usagers-etrangers-en-situation-reguliere-Prenez-rendez-vous-ici';
+function getUrl(){
+    return 'http://www.herault.gouv.fr/Actualites/INFOS/Usagers-etrangers-en-situation-reguliere-Prenez-rendez-vous-ici'
+}
+
+async function isRdvAvailablePlaywright(savePhotos, keepBrowserOpened){
+    let url = getUrl()
     const browser = await playwright[browserType].launch({
         headless: keepBrowserOpened===false
     });
     const context = await browser.newContext();
     const page = await context.newPage();
     await page.goto(url);
-    
-    let isAvailable = false
-    
-    try{
-        url = await page.$eval('img[title="Prendre rendez-vous"]', el => el.parentNode.href)
-        await page.goto(url)
-        await page.click('input[name="condition"]')
-        await page.click('input[name="nextButton"')
+    url = await page.$eval('img[title="Prendre rendez-vous"]', el => el.parentNode.href)
+    await page.goto(url)
+    await page.click('input[name="condition"]')
+    await page.click('input[name="nextButton"')
 
-        await page.waitForFunction(() => {
-            return !!document.querySelector('#global_Booking')
-        })
-        let notAvailable = await page.$eval('form[name="create"]', el => {
-            return el.innerHTML.indexOf('existe plus') !== -1
-        })
-        isAvailable = !notAvailable
-    }catch(err){
-        console.log("ERROR (While scraping)",err)
-    }
+    await page.waitForFunction(() => {
+        return !!document.querySelector('#global_Booking')
+    })
+    let notAvailable = await page.$eval('form[name="create"]', el => {
+        return el.innerHTML.indexOf('existe plus') !== -1
+    })
 
-    if(isAvailable || savePhotos){
+    if(!notAvailable || savePhotos){
         let photoPath = await savePhotoInfo(isAvailable)
         await page.screenshot({ path: photoPath });
         await optimizeImage(photoPath)
     }
+
+    await browser.close();
+    return !notAvailable
+}
+
+async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened){
+    let url = getUrl()
+    const puppeteer = require('puppeteer');
+    const browser = await puppeteer.launch({
+     headless:keepBrowserOpened===false,
+        args:['--no-sandbox']
+    });
+    const page = await browser.newPage();
+    await page.goto(url);
+    url = await page.$eval('img[title="Prendre rendez-vous"]', el => el.parentNode.href)
+    await page.goto(url)
+    await page.waitForSelector('input[name="condition"]')
+    await page.waitForSelector('input[name="nextButton"]')
+    await page.click('input[name="condition"]')
+    await page.click('input[name="nextButton"')
+
+    let notAvailable = await page.$eval('form[name="create"]', el => {
+        return el.innerHTML.indexOf('existe plus') !== -1
+    })
+
+    if(!notAvailable || savePhotos){
+        let photoPath = await savePhotoInfo(!notAvailable)
+        await page.screenshot({ path: photoPath });
+        await optimizeImage(photoPath)
+    }
+
+    await browser.close();
+    return !notAvailable
+}
+
+async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEmail = true) {
+    let isAvailable = false
+    try{
+        //isAvailable = await isRdvAvailablePlaywright(savePhotos, keepBrowserOpened)
+        isAvailable = await isRdvAvailablePuppeter(savePhotos, keepBrowserOpened)
+    }catch(err){
+        console.log("ERROR (While scraping)",err)
+    }
+
+    console.log(moment().format('DD-MM-YY HH:mm:ss'),'available', isAvailable)
+
+   
 
     if(isAvailable){
 
@@ -159,6 +200,7 @@ async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEma
             email.notifyAvailability();
         }
 
+        /*
         if(keepBrowserOpened){
             try{
                 if(app._browser && app._browserAt < Date.now()){
@@ -184,12 +226,12 @@ async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEma
         }else{
             console.log(moment().format('DD-MM-YY HH:mm:ss'),'INFO (Trying to keep the browser opened after an availabitiy)')
             isRdvAvailable(false,true, false)
-        }
+        }*/
 
 
     }else{
-        await browser.close();
-        console.log(moment().format('DD-MM-YY HH:mm:ss'),'no rdv available')
+        //await browser.close();
+        
     }
     
     return isAvailable
@@ -199,7 +241,9 @@ async function savePhotoInfo(isAvailable){
     let stats = {}
     try{
         stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
-    }catch(err){}
+    }catch(err){
+        console.log('Failed to read stats:',err.stack)
+    }
     stats.photos = stats.photos || [];
     let id = moment().format('DD[_]MM[_]YY[_]HH[_]mm')
     if(stats.photos.indexOf(id)===-1){

@@ -21,6 +21,7 @@
     "nodemon": "^2.0.4",
     "playwright": "^1.2.1",
     "png-to-jpeg": "^1.0.1",
+    "puppeteer": "^5.2.1",
     "sander": "^0.6.0",
     "vue": "^2.6.11",
     "vue-server-renderer": "^2.6.11"
