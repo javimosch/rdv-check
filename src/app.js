@@ -6,8 +6,6 @@ let moment = require('moment-timezone')
 
 module.exports = async function(){
     let stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
-    console.log('READ STATS',
-    stats)
     function photosMap(photoName){
         return {
             name: photoName,
