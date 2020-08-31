@@ -8,3 +8,5 @@
 -v "$(pwd)/package.lock.json:/app/package.lock.json" \
 -v "/root/.npm/_cacache:/root/.npm/_cacache" node:13.8.0-alpine sh deploy-entry.sh;
 docker logs -f rdvprefempt;
+
+

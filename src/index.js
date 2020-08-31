@@ -15,7 +15,7 @@ const email = require('./email')
 //schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
 //schedule.scheduleJob('*/2,05 * * * *', createRdvAvailableTask(false));
 
-isRdvAvailable(true,false,false);
+//isRdvAvailable(true,false,false);
 
 app.use('/',express.static('public'))
 app.get('/',async (req,res)=>{
