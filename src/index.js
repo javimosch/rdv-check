@@ -2,7 +2,6 @@ require('dotenv').config({
     silent:true
 })
 const express = require('express')
-const playwright = require('playwright');
 const browserType = 'firefox';
 const app = express();
 const schedule = require('node-schedule');
@@ -121,35 +120,6 @@ function getUrl(){
     return 'http://www.herault.gouv.fr/Actualites/INFOS/Usagers-etrangers-en-situation-reguliere-Prenez-rendez-vous-ici'
 }
 
-async function isRdvAvailablePlaywright(savePhotos, keepBrowserOpened){
-    let url = getUrl()
-    const browser = await playwright[browserType].launch({
-        headless: keepBrowserOpened===false
-    });
-    const context = await browser.newContext();
-    const page = await context.newPage();
-    await page.goto(url);
-    url = await page.$eval('img[title="Prendre rendez-vous"]', el => el.parentNode.href)
-    await page.goto(url)
-    await page.click('input[name="condition"]')
-    await page.click('input[name="nextButton"')
-
-    await page.waitForFunction(() => {
-        return !!document.querySelector('#global_Booking')
-    })
-    let notAvailable = await page.$eval('form[name="create"]', el => {
-        return el.innerHTML.indexOf('existe plus') !== -1
-    })
-
-    if(!notAvailable || savePhotos){
-        let photoPath = await savePhotoInfo(isAvailable)
-        await page.screenshot({ path: photoPath });
-        await optimizeImage(photoPath)
-    }
-
-    await browser.close();
-    return !notAvailable
-}
 
 async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened){
     let url = getUrl()
@@ -184,7 +154,6 @@ async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened){
 async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEmail = true) {
     let isAvailable = false
     try{
-        //isAvailable = await isRdvAvailablePlaywright(savePhotos, keepBrowserOpened)
         isAvailable = await isRdvAvailablePuppeter(savePhotos, keepBrowserOpened)
     }catch(err){
         console.log("ERROR (While scraping)",err)
