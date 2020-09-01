@@ -14,6 +14,9 @@ const email = require('./email')
 schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
 schedule.scheduleJob('*/3 * * * *', createRdvAvailableTask(false));
 
+//Test
+//isRdvAvailable(false,false,false)
+
 app.use('/',express.static('public'))
 app.get('/',async (req,res)=>{
     try{
@@ -134,6 +137,13 @@ async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened){
     await page.waitForSelector('input[name="nextButton"]')
     await page.click('input[name="condition"]')
     await page.click('input[name="nextButton"')
+
+    await page.waitForSelector('input[name="planning"]')
+    await page.waitForSelector('input[name="nextButton"]')
+    await page.click('input[name="planning"]')
+    await page.click('input[name="nextButton"]')
+
+    await page.waitForSelector('form[name="create"]')
 
     let notAvailable = await page.$eval('form[name="create"]', el => {
         return el.innerHTML.indexOf('existe plus') !== -1
