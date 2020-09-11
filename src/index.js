@@ -1,5 +1,5 @@
 require('dotenv').config({
-    silent:true
+    silent: true
 })
 const express = require('express')
 const browserType = 'firefox';
@@ -10,16 +10,121 @@ const renderApp = require('./renderer')
 let momentTZ = require('moment-timezone')
 moment = (m) => momentTZ(m).tz('Europe/Paris')
 const email = require('./email')
+const dbname = 'rdvcheck'
+
+bootstrap().catch(err => {
+    console.error(err)
+    process.exit(1)
+})
 
 schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
 schedule.scheduleJob('*/3 * * * *', createRdvAvailableTask(false));
 
+function getMongoClient() {
+    return new Promise((resolve, reject) => {
+        if (app.mongo_client && app.mongo_client.isConnected()) {
+            return resolve(app.mongo_client)
+        }
+        const MongoClient = require('mongodb').MongoClient;
+        app.mongo_client = new MongoClient(process.env.MONGO_URI, { useNewUrlParser: true });
+        app.mongo_client.connect(err => {
+            if (err) {
+                reject(err)
+            } else {
+                resolve(app.mongo_client)
+            }
+        })
+    })
+}
+
+async function bootstrap() {
+    //let mongo = await getMongoClient()
+    await saveUsersFromEnv();
+    
+    
+    
+    //await require('axios').get('http://localhost:3000/api/unsubscribe/arancibiajav@gmail.com')
+}
+
+async function getSubscribedUsers(){
+    return (await (await getMongoClient()).db(dbname).collection("users").find({
+        subscribed:true
+    })).toArray()
+}
+
+async function setUserSusbscribe(userEmail, isSubscribed = false, upsert = false){
+    console.log('unsubscribeUser',userEmail)
+    await (await getMongoClient()).db(dbname).collection("users").updateOne({
+        email: {
+            $eq: userEmail
+        }
+    }, {
+        $set: {
+            subscribed:isSubscribed
+        }
+    },{
+        upsert
+    })
+}
+
+async function saveUsersFromEnv() {
+    const collection = (await getMongoClient()).db(dbname).collection("users");
+    return Promise.all(
+        process.env.EMAIL_TO.split(',').map(userEmail => {
+            return (async () => {
+
+                let user = await collection.findOne({ email: userEmail })
+                let subscribed = user ? (user.subscribed !== undefined ? user.subscribed : true) : true
+                let set = {
+                    email: userEmail,
+                    subscribed
+                }
+
+                await collection.updateOne({
+                    email: {
+                        $eq: userEmail
+                    }
+                }, {
+                    $set: set
+                }, {
+                    upsert: true
+                })
+
+            })();
+        }))
+}
+
+
 //Test
 //isRdvAvailable(false,false,false)
-
-app.use('/',express.static('public'))
-app.get('/',async (req,res)=>{
+app.get('/api/unsubscribe/:email',(req,res)=>{
+    setUserSusbscribe(req.params.email, false);
+    res.status(200).json({
+        message:`${req.params.email} is now unsubscribed and it will not receive any more emails`
+    });
+})
+app.get('/api/subscribe/:email',async (req,res)=>{
+    
+    let json = []
     try{
+        json = JSON.parse((await sander.readFile(process.cwd()+'/users.json')).toString('utf-8'))
+    }catch(err){
+    }
+    if(json.indexOf(req.params.email)===-1){
+        json.push(req.params.email)
+        await sander.writeFile(process.cwd()+'/users.json',JSON.stringify(json,null,4))
+    }
+
+    setUserSusbscribe(req.params.email, true, true);
+    
+    res.status(200).json({
+        message:`${req.params.email} is now subscribed`
+    });
+
+})
+app.use('/', express.static('public'))
+app.get('/', async (req, res) => {
+    try {
         res.send(`
         <!DOCTYPE html>
 <html lang="en">
@@ -33,53 +138,53 @@ app.get('/',async (req,res)=>{
 </body>
 </html>
         `)
-    }catch(err){
-        console.error('ERROR',err.message,err.stack)
+    } catch (err) {
+        console.error('ERROR', err.message, err.stack)
         res.send(500)
     }
 })
-app.listen(process.env.PORT||3000, ()=>console.log(`LISTEN ${process.env.PORT||3000}`))
+app.listen(process.env.PORT || 3000, () => console.log(`LISTEN ${process.env.PORT || 3000}`))
 
 detectExistingPhotos()
 
-async function removeExtensions(){
+async function removeExtensions() {
     let stats = await getStats();
-    stats.photos = stats.photos.map(p=>{
+    stats.photos = stats.photos.map(p => {
         return p.split('.')[0]
     })
-    stats.photosAvail = stats.photosAvail.map(p=>{
+    stats.photosAvail = stats.photosAvail.map(p => {
         return p.split('.')[0]
     })
-    await saveStats(stats) 
+    await saveStats(stats)
 }
 
-async function removeDuplicates(){
+async function removeDuplicates() {
     let stats = await getStats();
-    stats.photos = stats.photos.filter((p,i)=>{
-        return stats.photos.indexOf(p)===i
+    stats.photos = stats.photos.filter((p, i) => {
+        return stats.photos.indexOf(p) === i
     })
-    stats.photosAvail = stats.photosAvail.filter((p,i)=>{
-        return stats.photosAvail.indexOf(p)===i
+    stats.photosAvail = stats.photosAvail.filter((p, i) => {
+        return stats.photosAvail.indexOf(p) === i
     })
-    await saveStats(stats) 
+    await saveStats(stats)
 }
 
-async function detectExistingPhotos(){
+async function detectExistingPhotos() {
     await removeDuplicates()
     await removeExtensions()
     let stats = await getStats();
-    let detectExistingPhotosAvailable = async (available = false)=>{
+    let detectExistingPhotosAvailable = async (available = false) => {
         let statsKey = available ? 'photosAvail' : 'photos'
         let photosInStats = await readPhotosDirectory(available)
-        photosInStats.forEach(name=>{
+        photosInStats.forEach(name => {
             name = name.split('.')[0]
-            let isPresent = stats[statsKey] && stats[statsKey].find(n=>n==name)
-            if(!isPresent){
+            let isPresent = stats[statsKey] && stats[statsKey].find(n => n == name)
+            if (!isPresent) {
                 stats[statsKey].push(name)
             }
         })
-        stats[statsKey] = stats[statsKey].sort((a,b)=>{
-            return a<b ? 1 : -1
+        stats[statsKey] = stats[statsKey].sort((a, b) => {
+            return a < b ? 1 : -1
         })
     }
     await detectExistingPhotosAvailable(false)
@@ -87,47 +192,54 @@ async function detectExistingPhotos(){
     await saveStats(stats)
 }
 
-async function readPhotosDirectory(available = false){
-    return await sander.readdir(process.cwd()+`/public/photos/${available?'available':'not_available'}`)
+async function readPhotosDirectory(available = false) {
+    return await sander.readdir(process.cwd() + `/public/photos/${available ? 'available' : 'not_available'}`)
 }
 
-async function getStats(){
-    try{
-        return JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
-    }catch(err){
+async function getStats() {
+    try {
+        return JSON.parse((await sander.readFile(process.cwd() + '/public/stats.json')).toString('utf-8'))
+    } catch (err) {
         return {}
     }
 }
 
-async function saveStats(stats){
-    return await sander.writeFile(process.cwd()+'/public/stats.json',JSON.stringify(stats,null,4))
+async function saveStats(stats) {
+    return await sander.writeFile(process.cwd() + '/public/stats.json', JSON.stringify(stats, null, 4))
 }
 
 
-function createRdvAvailableTask(savePhotos = true){
-    return function(){
+function createRdvAvailableTask(savePhotos = true) {
+    return function () {
         isRdvAvailable(savePhotos).then(async isAvailable => {
-            let stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
+            let stats = JSON.parse((await sander.readFile(process.cwd() + '/public/stats.json')).toString('utf-8'))
             stats.lastCheck = moment()._d.getTime()
             stats.lastCheckFormatted = moment().format('DD-MM-YY HH[h]mm')
-            await sander.writeFile(process.cwd()+'/public/stats.json',JSON.stringify(stats,null,4))
-        }).catch(err=>{
+            await sander.writeFile(process.cwd() + '/public/stats.json', JSON.stringify(stats, null, 4))
+        }).catch(err => {
             console.log("ERROR (CRON)", err)
         })
     }
 }
 
-function getUrl(){
+function getUrl() {
     return 'http://www.herault.gouv.fr/Actualites/INFOS/Usagers-etrangers-en-situation-reguliere-Prenez-rendez-vous-ici'
 }
 
 
-async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened){
+async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened) {
     let url = getUrl()
     const puppeteer = require('puppeteer');
+    const chromeFlags = [
+        '--headless',
+        '--no-sandbox',
+        "--disable-gpu",
+        "--single-process",
+        "--no-zygote"
+    ]
     const browser = await puppeteer.launch({
-     headless:keepBrowserOpened===false,
-        args:['--no-sandbox']
+        headless: keepBrowserOpened === false,
+        args: chromeFlags
     });
     const page = await browser.newPage();
     await page.goto(url);
@@ -149,7 +261,7 @@ async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened){
         return el.innerHTML.indexOf('existe plus') !== -1
     })
 
-    if(!notAvailable || savePhotos){
+    if (!notAvailable || savePhotos) {
         let photoPath = await savePhotoInfo(!notAvailable)
         await page.screenshot({ path: photoPath });
         await optimizeImage(photoPath)
@@ -161,20 +273,20 @@ async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened){
 
 async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEmail = true) {
     let isAvailable = false
-    try{
+    try {
         isAvailable = await isRdvAvailablePuppeter(savePhotos, keepBrowserOpened)
-    }catch(err){
-        console.log("ERROR (While scraping)",err)
+    } catch (err) {
+        console.log("ERROR (While scraping)", err)
     }
 
-    console.log(moment().format('DD-MM-YY HH:mm:ss'),'available', isAvailable)
+    console.log(moment().format('DD-MM-YY HH:mm:ss'), 'available', isAvailable)
 
-   
 
-    if(isAvailable){
 
-        if(notifyByEmail){
-            email.notifyAvailability();
+    if (isAvailable) {
+
+        if (notifyByEmail) {
+            email.notifyAvailability((await getSubscribedUsers()).map(u=>u.email));
         }
 
         /*
@@ -206,42 +318,42 @@ async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEma
         }*/
 
 
-    }else{
+    } else {
         //await browser.close();
-        
+
     }
-    
+
     return isAvailable
 };
 
-async function savePhotoInfo(isAvailable){
+async function savePhotoInfo(isAvailable) {
     let stats = {}
-    try{
-        stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
-    }catch(err){
-        console.log('Failed to read stats:',err.stack)
+    try {
+        stats = JSON.parse((await sander.readFile(process.cwd() + '/public/stats.json')).toString('utf-8'))
+    } catch (err) {
+        console.log('Failed to read stats:', err.stack)
     }
     stats.photos = stats.photos || [];
     let id = moment().format('DD[_]MM[_]YY[_]HH[_]mm')
-    if(stats.photos.indexOf(id)===-1){
+    if (stats.photos.indexOf(id) === -1) {
         stats.photos.push(id)
     }
-    if(isAvailable){
+    if (isAvailable) {
         stats.photosAvail = stats.photosAvail || [];
         stats.photosAvail.push(id)
     }
-    await sander.writeFile(process.cwd()+'/public/stats.json',JSON.stringify(stats,null,4))
+    await sander.writeFile(process.cwd() + '/public/stats.json', JSON.stringify(stats, null, 4))
 
-    return process.cwd()+`/public/photos/${isAvailable?'available':"not_available"}/${id}.png`;
+    return process.cwd() + `/public/photos/${isAvailable ? 'available' : "not_available"}/${id}.png`;
 }
 
-async function optimizeImage(path){
+async function optimizeImage(path) {
     const imagemin = require('imagemin');
     const pngToJpeg = require('png-to-jpeg');
     await imagemin([path], {
-        destination:process.cwd()+'/public/photos',
+        destination: process.cwd() + '/public/photos',
         plugins: [
-            pngToJpeg({quality: 30})
+            pngToJpeg({ quality: 30 })
         ]
     });
 }

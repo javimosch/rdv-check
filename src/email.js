@@ -3,11 +3,11 @@ const mailjet = require('node-mailjet')
     .connect(process.env.MJ_APIKEY_PUBLIC, process.env.MJ_APIKEY_PRIVATE)
 
 module.exports = {
-    async notifyAvailability() {
+    async notifyAvailability(emails = []) {
         
         let stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
 
-        let emailTo = (process.env.EMAIL_TO || "arancibiajav@gmail.com").trim().split(',').map(email=>{
+        let emailTo = emails.map(email=>{
             return {
                 Email: email,
                 Name: 'Listener'
