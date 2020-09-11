@@ -40,10 +40,12 @@ function getMongoClient() {
 async function bootstrap() {
     //let mongo = await getMongoClient()
     await saveUsersFromEnv();
-    
-    
-    
     //await require('axios').get('http://localhost:3000/api/unsubscribe/arancibiajav@gmail.com')
+    //die each hour to remove puppeter zombies
+    setTimeout(()=>{
+        console.log('Restarting...')
+        process.exit(0);
+    },1000*60*60)
 }
 
 async function getSubscribedUsers(){
@@ -98,6 +100,11 @@ async function saveUsersFromEnv() {
 //Test
 //isRdvAvailable(false,false,false)
 app.get('/api/unsubscribe/:email',(req,res)=>{
+    if(req.params.email.indexOf('@')===-1){
+        return res.json({
+            message:`You need to specify the email you want to unsubscribe. Example: /api/unsubscribe/jean@gmail.com`
+        })
+    }
     setUserSusbscribe(req.params.email, false);
     res.status(200).json({
         message:`${req.params.email} is now unsubscribed and it will not receive any more emails`
@@ -250,16 +257,24 @@ async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened) {
     await page.click('input[name="condition"]')
     await page.click('input[name="nextButton"')
 
-    await page.waitForSelector('input[name="planning"]')
-    await page.waitForSelector('input[name="nextButton"]')
-    await page.click('input[name="planning"]')
-    await page.click('input[name="nextButton"]')
+    let notAvailable = false
 
-    await page.waitForSelector('form[name="create"]')
+    //existe plus is already present ?
+    if((await page.$('form[name="create"]'))!==null){
+        notAvailable = await page.$eval('form[name="create"]', el => {
+            return el.innerHTML.indexOf('existe plus') !== -1
+        })
+    }else{
+        await page.waitForSelector('input[name="planning"]')
+        await page.waitForSelector('input[name="nextButton"]')
+        await page.click('input[name="planning"]')
+        await page.click('input[name="nextButton"]')
+        await page.waitForSelector('form[name="create"]')
 
-    let notAvailable = await page.$eval('form[name="create"]', el => {
-        return el.innerHTML.indexOf('existe plus') !== -1
-    })
+        notAvailable = await page.$eval('form[name="create"]', el => {
+            return el.innerHTML.indexOf('existe plus') !== -1
+        })
+    }
 
     if (!notAvailable || savePhotos) {
         let photoPath = await savePhotoInfo(!notAvailable)
