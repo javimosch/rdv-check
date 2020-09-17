@@ -2,9 +2,7 @@ const Vue = require('vue')
 const sander = require('sander');
 let moment = require('moment-timezone')
 
-
-
-module.exports = async function(){
+module.exports = async function(app){
     let stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
     function photosMap(photoName){
         let date = moment(photoName.split('_').join(''),'DDMMYYHHmm').tz('Europe/Paris')
@@ -33,12 +31,11 @@ module.exports = async function(){
         <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12"></script>
         <script src="/client.js"></script>
 
-        <p class="source_code">
-        &nbsp;Source code: <br/>
-        <a href="https://github.com/misitioba/rdv-check" target="_blank">
-            &nbsp;https://github.com/misitioba/rdv-check
-        </a>
+        <p class="subscribed_people">
+            This instance has <strong>${await app.countSubscribers()}</strong> active subscribers
         </p>
+
+        
         
         <h2 class="rdv_ok">Disponibilités detectes</h2>
         <p style="padding:10px;">
@@ -62,7 +59,23 @@ module.exports = async function(){
             </div>
         </div>
 
+        <p class="source_code">
+        Author:&nbsp;Javier Leandro Arancibia
+        </p>
+
+        <p class="source_code">
+        Source code: <br/>
+        <a href="https://github.com/misitioba/rdv-check" target="_blank">
+            https://github.com/misitioba/rdv-check
+        </a>
+        </p>
+
         <style scoped>
+        .subscribed_people{
+            text-align: center;
+    font-size: 25px;
+    color: #6e996e;
+        }
         .source_code{
             padding: 10px;
     background: #dedede;
@@ -94,12 +107,12 @@ module.exports = async function(){
                 text-align: center;
             }
             .warning{
-                background: #e8e8b8;
+                background: #dedede;
     padding: 20px;
     margin: 0px;
     text-align: right;
     font-size: 22px;
-    color: #642081;
+    color: #8d1643;
             }
             body{
                 margin:0px;

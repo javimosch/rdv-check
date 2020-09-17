@@ -108,6 +108,14 @@ async function saveUsersFromEnv() {
 //Test
 //isRdvAvailable(false,false,false)
 
+app.countSubscribers = async function(){
+    return await (await getMongoClient()).db(dbname).collection("users").count({
+        subscribed:{
+            $eq:true
+        }
+    })
+}
+
 app.get('/api/is_subscribed/:email',async (req,res)=>{
     let count = await (await getMongoClient()).db(dbname).collection("users").count({
         email: {
@@ -166,7 +174,7 @@ app.get('/', async (req, res) => {
     <title>DÉPÔT DE DOSSIER – ETRANGERS EN SITUATION RÉGULIÈRE: Vérification de disponibilité</title>
 </head>
 <body>
-    ${await renderApp()}
+    ${await renderApp(app)}
 </body>
 </html>
         `)
