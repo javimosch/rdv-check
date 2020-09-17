@@ -55,7 +55,15 @@ async function getSubscribedUsers(){
 }
 
 async function setUserSusbscribe(userEmail, isSubscribed = false, upsert = false){
-    console.log('unsubscribeUser',userEmail)
+    console.log('setUserSusbscribe',userEmail,{
+        isSubscribed,upsert
+    })
+
+    if(upsert && userEmail.indexOf('@')===-1){
+        console.log('Ignoring email',userEmail)
+        return
+    }
+
     await (await getMongoClient()).db(dbname).collection("users").updateOne({
         email: {
             $eq: userEmail
@@ -99,6 +107,21 @@ async function saveUsersFromEnv() {
 
 //Test
 //isRdvAvailable(false,false,false)
+
+app.get('/api/is_subscribed/:email',async (req,res)=>{
+    let count = await (await getMongoClient()).db(dbname).collection("users").count({
+        email: {
+            $eq: req.params.email,
+        },
+        subscribed:{
+            $eq:true
+        }
+    })
+    res.status(200).json({
+        message: count>0 ? `${req.params.email} is already subscribed.` : `${req.params.email} is not subscribed`
+    });
+})
+
 app.get('/api/unsubscribe/:email',(req,res)=>{
     if(req.params.email.indexOf('@')===-1){
         return res.json({
@@ -110,6 +133,7 @@ app.get('/api/unsubscribe/:email',(req,res)=>{
         message:`${req.params.email} is now unsubscribed and it will not receive any more emails`
     });
 })
+
 app.get('/api/subscribe/:email',async (req,res)=>{
     
     let json = []
@@ -129,6 +153,7 @@ app.get('/api/subscribe/:email',async (req,res)=>{
     });
 
 })
+
 app.use('/', express.static('public'))
 app.get('/', async (req, res) => {
     try {
@@ -259,12 +284,16 @@ async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened) {
 
     let notAvailable = false
 
-    //existe plus is already present ?
+    await page.waitForSelector('form[name="create"]')
+    
     if((await page.$('form[name="create"]'))!==null){
         notAvailable = await page.$eval('form[name="create"]', el => {
             return el.innerHTML.indexOf('existe plus') !== -1
         })
-    }else{
+    }
+
+    //there is a next button??
+    if(await page.$('form[name="nextButton"]')){
         await page.waitForSelector('input[name="planning"]')
         await page.waitForSelector('input[name="nextButton"]')
         await page.click('input[name="planning"]')
@@ -278,7 +307,7 @@ async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened) {
 
     if (!notAvailable || savePhotos) {
         let photoPath = await savePhotoInfo(!notAvailable)
-        await page.screenshot({ path: photoPath });
+        await page.screenshot({ path: photoPath, fullPage: true });
         await optimizeImage(photoPath)
     }
 

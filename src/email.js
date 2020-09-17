@@ -27,7 +27,7 @@ module.exports = {
                         "Subject": "RDV Check: Availability detected!",
                         "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
                         "HTMLPart": `
-                        <h2>Hi Admin</h2>
+                        <h2>Hi User</h2>
                         <p>
                             I noticed the RDV is available. Go, quick!
                         </p>
