@@ -2,3 +2,4 @@ node_modules
 .env
 public/photos/*.png
 public/stats.json
+users.json
