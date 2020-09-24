@@ -3,30 +3,35 @@ const mailjet = require('node-mailjet')
     .connect(process.env.MJ_APIKEY_PUBLIC, process.env.MJ_APIKEY_PRIVATE)
 
 module.exports = {
-    async notifyAvailability(emails = []) {
-        
-        let stats = JSON.parse((await sander.readFile(process.cwd()+'/public/stats.json')).toString('utf-8'))
+    notifyAvailability(emails = []) {
+        return new Promise(async (resolve, reject) => {
 
-        let emailTo = emails.map(email=>{
-            return {
-                Email: email,
-                Name: 'Listener'
+            if (emails.length === 0) {
+                return resolve()
             }
-        })
 
-        const request = mailjet
-            .post("send", { 'version': 'v3.1' })
-            .request({
-                "Messages": [
-                    {
-                        "From": {
-                            "Email": "robot@devforgood.org",
-                            "Name": "RDV Check Robot"
-                        },
-                        "To": emailTo,
-                        "Subject": "RDV Check: Availability detected!",
-                        "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
-                        "HTMLPart": `
+            let stats = JSON.parse((await sander.readFile(process.cwd() + '/public/stats.json')).toString('utf-8'))
+
+            let emailTo = emails.map(email => {
+                return {
+                    Email: email,
+                    Name: 'Listener'
+                }
+            })
+
+            const request = mailjet
+                .post("send", { 'version': 'v3.1' })
+                .request({
+                    "Messages": [
+                        {
+                            "From": {
+                                "Email": "robot@devforgood.org",
+                                "Name": "RDV Check Robot"
+                            },
+                            "To": emailTo,
+                            "Subject": "RDV Check: Availability detected!",
+                            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+                            "HTMLPart": `
                         <h2>Hi User</h2>
                         <p>
                             I noticed the RDV is available. Go, quick!
@@ -40,19 +45,23 @@ module.exports = {
                         <p>
                             ${JSON.stringify({
                                 photosAvail: stats.photosAvail || 'Nothing to show :('
-                            },null, 4).split('\n\r').join('<br/>')}
+                            }, null, 4).split('\n\r').join('<br/>')}
                         </p>
 
                         `
-                    }
-                ]
-            })
-        request
-            .then((result) => {
-                console.log(result.body)
-            })
-            .catch((err) => {
-                console.log(err.statusCode)
-            })
+                        }
+                    ]
+                })
+            request
+                .then((result) => {
+                    console.log(result.body)
+                    resolve()
+                })
+                .catch((err) => {
+                    console.log(err.statusCode)
+                    reject(err)
+                })
+
+        })
     }
 }

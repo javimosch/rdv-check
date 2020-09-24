@@ -12,6 +12,9 @@ moment = (m) => momentTZ(m).tz('Europe/Paris')
 const email = require('./email')
 const dbname = 'rdvcheck'
 
+//If an user already received an email, wait X minutes before sendind another one (to avoid spamming)
+const MAIL_COOLDOWN_IN_MINUTES = process.env.MAIL_COOLDOWN_IN_MINUTES || 10
+
 bootstrap().catch(err => {
     console.error(err)
     process.exit(1)
@@ -19,6 +22,31 @@ bootstrap().catch(err => {
 
 schedule.scheduleJob('*/30 * * * *', createRdvAvailableTask(true));
 schedule.scheduleJob('*/3 * * * *', createRdvAvailableTask(false));
+
+//TEST
+//getMailableUsers().then(users=>console.log('MAILABLE RIGHT NOW',users))
+//isRdvAvailable(false,true,false)
+
+async function getCooledDownUsers() {
+    try {
+        let users = await getSubscribedUsers()
+        let validUsers = users.filter(user => {
+            return !user.last_email_sent || moment(user.last_email_sent).isBefore(moment().subtract(MAIL_COOLDOWN_IN_MINUTES, 'minutes'))
+        })
+        let invalidUsers = users.filter(u => validUsers.find(uu => uu.email == u.email) == null)
+        validUsers.forEach(user => {
+            console.log('getCooledDownUsers passed', user.email)
+        })
+        invalidUsers.forEach(user => {
+            let fromNow = (user.last_email_sent ? moment(user.last_email_sent) : moment()).fromNow()
+            console.log('getCooledDownUsers cooling down', user._id, fromNow)
+        })
+        return validUsers
+    } catch (err) {
+        console.log('sendEmailChecker ERROR', err.stack)
+        return []
+    }
+}
 
 function getMongoClient() {
     return new Promise((resolve, reject) => {
@@ -42,25 +70,40 @@ async function bootstrap() {
     await saveUsersFromEnv();
     //await require('axios').get('http://localhost:3000/api/unsubscribe/arancibiajav@gmail.com')
     //die each hour to remove puppeter zombies
-    setTimeout(()=>{
+    setTimeout(() => {
         console.log('Restarting...')
         process.exit(0);
-    },1000*60*60)
+    }, 1000 * 60 * 60)
 }
 
-async function getSubscribedUsers(){
+async function getMailableUsers() {
+    return await getCooledDownUsers()
+}
+
+async function updateEmailSent(users) {
+    return await (await getMongoClient()).db(dbname).collection("users").updateMany({
+        $or: users.map(user => ({ email: user.email }))
+    }, {
+        $set: {
+            last_email_sent: Date.now(),
+            last_email_sent_formatted: moment(Date.now()).format('DD-MM-YY HH:mm:ss')
+        }
+    })
+}
+
+async function getSubscribedUsers() {
     return (await (await getMongoClient()).db(dbname).collection("users").find({
-        subscribed:true
+        subscribed: true
     })).toArray()
 }
 
-async function setUserSusbscribe(userEmail, isSubscribed = false, upsert = false){
-    console.log('setUserSusbscribe',userEmail,{
-        isSubscribed,upsert
+async function setUserSusbscribe(userEmail, isSubscribed = false, upsert = false) {
+    console.log('setUserSusbscribe', userEmail, {
+        isSubscribed, upsert
     })
 
-    if(upsert && userEmail.indexOf('@')===-1){
-        console.log('Ignoring email',userEmail)
+    if (upsert && userEmail.indexOf('@') === -1) {
+        console.log('Ignoring email', userEmail)
         return
     }
 
@@ -70,9 +113,9 @@ async function setUserSusbscribe(userEmail, isSubscribed = false, upsert = false
         }
     }, {
         $set: {
-            subscribed:isSubscribed
+            subscribed: isSubscribed
         }
-    },{
+    }, {
         upsert
     })
 }
@@ -108,56 +151,56 @@ async function saveUsersFromEnv() {
 //Test
 //isRdvAvailable(false,false,false)
 
-app.countSubscribers = async function(){
+app.countSubscribers = async function () {
     return await (await getMongoClient()).db(dbname).collection("users").count({
-        subscribed:{
-            $eq:true
+        subscribed: {
+            $eq: true
         }
     })
 }
 
-app.get('/api/is_subscribed/:email',async (req,res)=>{
+app.get('/api/is_subscribed/:email', async (req, res) => {
     let count = await (await getMongoClient()).db(dbname).collection("users").count({
         email: {
             $eq: req.params.email,
         },
-        subscribed:{
-            $eq:true
+        subscribed: {
+            $eq: true
         }
     })
     res.status(200).json({
-        message: count>0 ? `${req.params.email} is already subscribed.` : `${req.params.email} is not subscribed`
+        message: count > 0 ? `${req.params.email} is already subscribed.` : `${req.params.email} is not subscribed`
     });
 })
 
-app.get('/api/unsubscribe/:email',(req,res)=>{
-    if(req.params.email.indexOf('@')===-1){
+app.get('/api/unsubscribe/:email', (req, res) => {
+    if (req.params.email.indexOf('@') === -1) {
         return res.json({
-            message:`You need to specify the email you want to unsubscribe. Example: /api/unsubscribe/jean@gmail.com`
+            message: `You need to specify the email you want to unsubscribe. Example: /api/unsubscribe/jean@gmail.com`
         })
     }
     setUserSusbscribe(req.params.email, false);
     res.status(200).json({
-        message:`${req.params.email} is now unsubscribed and it will not receive any more emails`
+        message: `${req.params.email} is now unsubscribed and it will not receive any more emails`
     });
 })
 
-app.get('/api/subscribe/:email',async (req,res)=>{
-    
+app.get('/api/subscribe/:email', async (req, res) => {
+
     let json = []
-    try{
-        json = JSON.parse((await sander.readFile(process.cwd()+'/users.json')).toString('utf-8'))
-    }catch(err){
+    try {
+        json = JSON.parse((await sander.readFile(process.cwd() + '/users.json')).toString('utf-8'))
+    } catch (err) {
     }
-    if(json.indexOf(req.params.email)===-1){
+    if (json.indexOf(req.params.email) === -1) {
         json.push(req.params.email)
-        await sander.writeFile(process.cwd()+'/users.json',JSON.stringify(json,null,4))
+        await sander.writeFile(process.cwd() + '/users.json', JSON.stringify(json, null, 4))
     }
 
     setUserSusbscribe(req.params.email, true, true);
-    
+
     res.status(200).json({
-        message:`${req.params.email} is now subscribed`
+        message: `${req.params.email} is now subscribed`
     });
 
 })
@@ -271,7 +314,7 @@ async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened) {
     let url = getUrl()
     const puppeteer = require('puppeteer');
     const chromeFlags = [
-        '--headless',
+        //'--headless',
         '--no-sandbox',
         "--disable-gpu",
         "--single-process",
@@ -281,46 +324,62 @@ async function isRdvAvailablePuppeter(savePhotos, keepBrowserOpened) {
         headless: keepBrowserOpened === false,
         args: chromeFlags
     });
+
+    
+
     const page = await browser.newPage();
+    const waitForNavigation = async ()=>{
+        try{
+            await page.waitForNavigation({
+                timeout:2000,
+                waitUntil: 'networkidle0',
+            });
+            /*await page.waitForNavigation({
+                waitUntil: 'domcontentloaded',
+            });*/
+        }catch(err){}
+    }
+    const clickIgnore = async (selector)=>{
+        try{
+            await page.click(selector)
+        }catch(err){
+
+        }
+    }
     await page.goto(url);
     url = await page.$eval('img[title="Prendre rendez-vous"]', el => el.parentNode.href)
     await page.goto(url)
+    
     await page.waitForSelector('input[name="condition"]')
     await page.waitForSelector('input[name="nextButton"]')
-    await page.click('input[name="condition"]')
-    await page.click('input[name="nextButton"')
-
-    let notAvailable = false
-
-    await page.waitForSelector('form[name="create"]')
     
-    if((await page.$('form[name="create"]'))!==null){
-        notAvailable = await page.$eval('form[name="create"]', el => {
-            return el.innerHTML.indexOf('existe plus') !== -1
-        })
+    await clickIgnore('input[name="condition"]')
+    await clickIgnore('input[name="nextButton"]')
+
+    await waitForNavigation();
+
+    while(await page.$eval('form[name="create"]', el => {
+        return el.innerHTML.indexOf('radio') !== -1
+    })){
+        await waitForNavigation();
+        await clickIgnore('input[name="planning"]')
+        await clickIgnore('input[type="submit"]')
+        await waitForNavigation();
     }
 
-    //there is a next button??
-    if(await page.$('form[name="nextButton"]')){
-        await page.waitForSelector('input[name="planning"]')
-        await page.waitForSelector('input[name="nextButton"]')
-        await page.click('input[name="planning"]')
-        await page.click('input[name="nextButton"]')
-        await page.waitForSelector('form[name="create"]')
+    let isAvailable = await page.$eval('form[name="create"]', el => {
+        return el.innerHTML.indexOf('existe plus') === -1
+    })
 
-        notAvailable = await page.$eval('form[name="create"]', el => {
-            return el.innerHTML.indexOf('existe plus') !== -1
-        })
-    }
 
-    if (!notAvailable || savePhotos) {
-        let photoPath = await savePhotoInfo(!notAvailable)
+    if (isAvailable || savePhotos) {
+        let photoPath = await savePhotoInfo(isAvailable)
         await page.screenshot({ path: photoPath, fullPage: true });
         await optimizeImage(photoPath)
     }
 
     await browser.close();
-    return !notAvailable
+    return isAvailable
 }
 
 async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEmail = true) {
@@ -336,43 +395,12 @@ async function isRdvAvailable(savePhotos, keepBrowserOpened = false, notifyByEma
 
 
     if (isAvailable) {
-
         if (notifyByEmail) {
-            email.notifyAvailability((await getSubscribedUsers()).map(u=>u.email));
+            let mailableUsers = await getMailableUsers()
+            email.notifyAvailability(mailableUsers.map(u => u.email)).then(() => {
+                updateEmailSent(mailableUsers)
+            });
         }
-
-        /*
-        if(keepBrowserOpened){
-            try{
-                if(app._browser && app._browserAt < Date.now()){
-                    try{
-                        await app._browser.close()
-                    }catch(err){
-                        //ignore such error
-                    }
-                    app._browser= null
-                }
-                if(app._browser){
-                    console.log(moment().format('DD-MM-YY HH:mm:ss'),'There is already a <10 min rdv avail browser opened')
-                    await browser.close() //There is <10 min available rdv openeed
-                }else{
-                    app._browserAt = Date.now() + (1000*3) //Keep a browser opened for 10 min or until next avail
-                    app._browser= browser
-                    console.log(moment().format('DD-MM-YY HH:mm:ss'),"INFO Browser is opened (availability)")
-                }
-            }catch(err){
-                console.log('ERROR: (Trying to keep the browser opened)',err)
-                await browser.close();
-            }
-        }else{
-            console.log(moment().format('DD-MM-YY HH:mm:ss'),'INFO (Trying to keep the browser opened after an availabitiy)')
-            isRdvAvailable(false,true, false)
-        }*/
-
-
-    } else {
-        //await browser.close();
-
     }
 
     return isAvailable
